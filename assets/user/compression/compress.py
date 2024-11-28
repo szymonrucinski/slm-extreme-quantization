@@ -1,11 +1,59 @@
 from os import getenv
 from torch import save
 import transformers
+from transformers import AutoTokenizer
+from sparseml.transformers import SparseAutoModelForCausalLM, oneshot
+import torch
 
 
 if __name__ == "__main__":
-    #mod=transformers.AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.1-8B")
-    mod=transformers.AutoModelForCausalLM.from_pretrained("crumb/nano-mistral")
-    env=getenv("OUTPUT_MODEL")
-    save(mod, f"{env}/mod.pt")
+    mod=transformers.AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.1-8B")
+    recipe = """
+    sparsity_stage:
+        run_type: oneshot
+    sparsity_modifiers:
+    SparseGPTModifier:
+        sparsity: 0.25
+        mask_structure: "1:4"
+        sequential_update: false
+    quantization_stage:
+    run_type: oneshot
+    quantization_modifiers:
+        GPTQModifier:
+        sequential_update: false
+        ignore: ["lm_head"]
+        config_groups:
+            group_0:
+            weights:
+                num_bits: 4
+                type: "int"
+                symmetric: true
+                strategy: "channel"
+                targets: ["Linear"]"""
+    
+    model_stub = "zoo:llama2-7b-ultrachat200k_llama2_pretrain-base"
+    model = SparseAutoModelForCausalLM.from_pretrained(model_stub, torch_dtype=torch.bfloat16, device_map="auto")
 
+    # uses SparseML's built-in preprocessing for ultra chat
+    dataset = "ultrachat-200k"
+
+    # save location of quantized model
+    output_dir = "./output_llama_W4A16_channel_compressed"
+    
+    # set dataset config parameters
+    splits = {"calibration": "train_gen[:5%]"}
+    max_seq_length = 512
+    pad_to_max_length = False
+    num_calibration_samples = 512
+    
+    oneshot(
+    model=model,
+    dataset=dataset,
+    recipe=recipe,
+    output_dir=output_dir,
+    splits=splits,
+    max_seq_length=max_seq_length,
+    pad_to_max_length=pad_to_max_length,
+    num_calibration_samples=num_calibration_samples,
+    save_compressed=True
+)
