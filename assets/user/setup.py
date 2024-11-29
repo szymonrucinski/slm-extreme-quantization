@@ -8,7 +8,7 @@ setup(
     author_email="xxxxxx@qq.com",
     description="test demo",
     # python_requires=">=3.6.0",
-    install_requires=["sparseml[transformers]","autoawq","nvidia-ml-py3"],  # ["matplotlib", "talib", "pylab", "numpy", "pandas", "baostock"]
+    install_requires=["sparseml[transformers]"],  # ["matplotlib", "talib", "pylab", "numpy", "pandas", "baostock"]
     packages=find_packages(),
     include_package_data = True,
     platforms="any",
