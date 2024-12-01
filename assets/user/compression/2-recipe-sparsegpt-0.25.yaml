@@ -1,0 +1,7 @@
+sparsity_stage:
+  run_type: oneshot
+  sparsity_modifiers:
+    SparseGPTModifier:
+      sparsity: 0.25
+      mask_structure: "1:4"
+      sequential_update: true

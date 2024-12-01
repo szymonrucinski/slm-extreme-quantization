@@ -14,12 +14,14 @@ pip3 install "sparseml[transformers]"
 # Update Transformers to solve
 # ValueError: `rope_scaling` must be a dictionary with two fields, `type` and `factor`, got {'factor': 8.0, 'low_freq_factor': 1.0, 'high_freq_factor': 4.0, 'original_max_position_embeddings': 8192, 'rope_type': 'llama3'}
 pip3 install transformers==4.46.3
+pip3 install autoawq
+pip3 install --upgrade aqlm[gpu,cpu]
 
 if [[ "$1" == "--compress" ]]; then
     echo "Starting model compression pipeline..."
 
 	echo "Running SpareGPT pruning 1:4 and quantization using 4-BIT-AWQ quantization"
-    python3 /opt/llm/user/compression/compress.py
+    # python3 /opt/llm/user/compression/compress.py
     echo "Running SpareGPT pruning 1:4 and quantization using 2-BIT-AQLM quantization"
 
 
@@ -35,7 +37,12 @@ if [[ "$1" == "--compress" ]]; then
     # # Run additional compression steps
     # echo "Running custom compression pipeline..."
     # cd compression
-    python3 /opt/user/llm/compression/compress.py
+
+	#AWQ-4bit
+    # python3 /opt/llm/user/compression/1-awq-4-bit.py /opt/llm/user/compression/output_model/Llama-3.1-8B-AWQ-4bit
+	# python3 /opt/llm/user/compression/2-sparsegpt.py /opt/llm/user/compression/output_model/Llama-3.1-8B-SparseGPT-4bit
+    python3 /opt/llm/user/compression/3-quantize-aqlm.py /opt/llm/user/compression/output_model/Llama-3.1-8B-AQLM-2bit
+
     
     # Verify output directory exists
     if [[ ! -d "$OUTPUT_MODEL" ]]; then
