@@ -7,7 +7,8 @@ set -e  # Exit on error
 # OUTPUT_MODEL: Directory for final model files
 
 # Login to Hugging Face
-huggingface-cli login --token ${HF_TOKEN}
+# huggingface-cli login --token ${HF_TOKEN}
+huggingface-cli login --token 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
 # Install dependencies
 # python3 setup.py install
 pip3 install "sparseml[transformers]"
@@ -17,9 +18,13 @@ pip3 install transformers==4.46.3
 pip3 install autoawq
 pip3 install --upgrade aqlm[gpu,cpu]
 
-if [[ "$1" == "--compress" ]]; then
-    echo "Starting model compression pipeline..."
 
+if [[ "$1" == "--compress" ]]; then
+    echo "Generate calibration dataset.
+    Calculate perplexity score for each element between <100;512> tokens.
+    Get samples across the entire perplexity range. 10 buckets with 100 per bucket.
+    "
+    python3 0-make_calibration_set.py
 	echo "Running SpareGPT pruning 1:4 and quantization using 4-BIT-AWQ quantization"
     # python3 /opt/llm/user/compression/compress.py
     echo "Running SpareGPT pruning 1:4 and quantization using 2-BIT-AQLM quantization"
