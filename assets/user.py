@@ -12,7 +12,7 @@ class UserLM(LM):
     def __init__(self, args) -> None:
         super().__init__()
         args_dict = simple_parse_args_string(args)
-        pretrained_path = args_dict.get('pretrained', 'szymonrucinski/Llama-3.1-8B-AWQ-4bit')
+        pretrained_path = args_dict.get('pretrained', 'szymonrucinski/Llama-3.1-8B-AWQ-4bit-huawei')
         
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_path)
         self.model = AutoModelForCausalLM.from_pretrained(

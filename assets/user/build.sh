@@ -16,7 +16,7 @@ if [ -z "${HF_TOKEN}" ]; then
 fi
 
 INPUT_MODEL=${INPUT_MODEL:-"meta-llama/Llama-3.1-8B"}
-MODEL_REPO="szymonrucinski/Llama-3.1-8B-AWQ-4bit"
+MODEL_REPO="szymonrucinski/Llama-3.1-8B-AWQ-4bit-huawei"
 OUTPUT_MODEL_NAME="Llama-3.1-8B-AWQ-4bit"
 FINAL_OUTPUT_DIR="${OUTPUT_DIR}/${OUTPUT_MODEL_NAME}"
 
