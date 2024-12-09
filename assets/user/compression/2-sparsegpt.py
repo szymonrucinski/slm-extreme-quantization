@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-from os import getenv
-from torch import save
-import transformers
+import argparse
+import torch
 from transformers import AutoTokenizer
 from sparseml.transformers import SparseAutoModelForCausalLM, apply
-import torch
-import argparse
+from datasets import load_dataset
+import pandas as pd
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Quantize Llama model using SparseML')
@@ -41,24 +40,50 @@ def parse_args():
     )
     return parser.parse_args()
 
-def main():
-    args = parse_args()
+def load_calibration_dataset():
+    """
+    Load the calibration dataset from HuggingFace parquet file.
+    Returns:
+        dataset: HuggingFace dataset object containing the calibration data
+    """
+    # Load dataset directly using datasets library
+    dataset = load_dataset(
+        "parquet",
+        data_files={
+            "train": "https://huggingface.co/datasets/szymonrucinski/calibration-dataset/resolve/main/calibration_dataset/train-00000-of-00001.parquet"
+        }
+    )
     
+    # Select only the text column
+    dataset = dataset.select_columns(['text'])
+    
+    return dataset
+
+def quantize_model(args):
+    """
+    Quantize a model using SparseML with the specified parameters.
+    Args:
+        args: Parsed command line arguments
+    """
     print(f"Loading model from {args.input_model}...")
     model = SparseAutoModelForCausalLM.from_pretrained(
         args.input_model,
         torch_dtype=torch.bfloat16
     )
-    
-    dataset = "szymonrucinski/calibration-dataset"
-    splits = {"calibration": "train[:100%]", "train": "test"}
-    
+
+    # Load calibration dataset
+    print("Loading calibration dataset...")
+    dataset = load_calibration_dataset()
+    splits = {
+        "calibration": "train[:100%]",  # Use full training set for calibration
+        "train": "test"                 # Required by SparseML but not used
+    }
+
     print(f"Applying quantization using recipe: {args.recipe}")
     apply(
         model=model,
         dataset=dataset,
         recipe=args.recipe,
-        bf16=True,
         output_dir=args.output_model,
         splits=splits,
         max_seq_length=args.max_length,
@@ -66,6 +91,10 @@ def main():
     )
     
     print(f"Model quantized and saved to {args.output_model}")
+
+def main():
+    args = parse_args()
+    quantize_model(args)
 
 if __name__ == "__main__":
     main()

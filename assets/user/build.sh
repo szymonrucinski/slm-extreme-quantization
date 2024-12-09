@@ -1,53 +1,108 @@
 #!/bin/bash
-set -x  # Print commands for debugging
-set -e  # Exit on error
+set -x # Print commands for debugging
+set -e # Exit on error
 
-# Environment variables expected:
-# HF_TOKEN: Hugging Face access token
-# OUTPUT_MODEL: Directory for final model files
-
-# Login to Hugging Face
-# huggingface-cli login --token ${HF_TOKEN}
-huggingface-cli login --token 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
-# Install dependencies
-# python3 setup.py install
-pip3 install "sparseml[transformers]"
-# Update Transformers to solve
-# ValueError: `rope_scaling` must be a dictionary with two fields, `type` and `factor`, got {'factor': 8.0, 'low_freq_factor': 1.0, 'high_freq_factor': 4.0, 'original_max_position_embeddings': 8192, 'rope_type': 'llama3'}
-pip3 install transformers==4.46.3
-pip3 install autoawq
-pip3 install lm-eval
-pip3 install --upgrade aqlm[gpu,cpu]
+# Base directory structure
+BASE_DIR="/workspace/slm-extreme-quantization/assets/user"
+COMPRESSION_DIR="${BASE_DIR}/compression"
+OUTPUT_DIR="${COMPRESSION_DIR}/output_model"
+HF_TOKEN=${HF_TOKEN:-"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"}
 
 
-if [[ "$1" == "--compress" ]]; then
-    echo "Generate calibration dataset.
-    Calculate perplexity score for each element between <100;512> tokens.
-    Get samples across the entire perplexity range. 10 buckets with 100 per bucket.
-    "
-    # python3 0-make_calibration_set.py
-    
-    echo "Running Initial Eval of LLama-3.1-8B model"
-    HF_TOKEN="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"
-    OUTPUT_MODEL="meta-llama/Llama-3.2-1B"
-    # ./compression/custom_eval.sh "$HF_TOKEN" "$ORIGINAL_MODEL" "$OUTPUT_MODEL"
-
-    echo "Running 4-bit quantization of the model using AWQ W4A16 with custom calibration dataset"
-    python3 ./compression/1-awq-4-bit.py --input-model $OUTPUT_MODEL --output-model ./compression/output_model/Llama-3.1-8B-AWQ-4bit
-    python3 upload_model.py --model-dir ./compression/output_model/Llama-3.1-8B-AWQ-4bit --repo-name "szymonrucinski/Llama-3.1-8B-AWQ-4bit" 
-    OUTPUT_MODEL="meta-llama/Llama-3.1-8B"
-    ./compression/custom_eval.sh "$HF_TOKEN" "$ORIGINAL_MODEL" "./compression/output_model/Llama-3.1-8B-AWQ-4bit"
-
-
-    echo "Running pruning of 4-bit quantization of the model using AWQ W4A16 "
-    python3 upload_model.py --model-dir ./compression/output_model/Llama-3.1-8B-AWQ-4bit --repo-name "szymonrucinski/Llama-3.1-8B-AWQ-4bit" 
-
-    
-    # Verify output directory exists
-    if [[ ! -d "$OUTPUT_MODEL" ]]; then
-        echo "Error: OUTPUT_MODEL directory not found after compression"
-        exit 1
-    fi
+# Environment variables and defaults
+if [ -z "${HF_TOKEN}" ]; then
+    echo "Error: HF_TOKEN environment variable is not set"
+    exit 1
 fi
 
-echo "BUILD SUCCESSFUL"
+INPUT_MODEL=${INPUT_MODEL:-"meta-llama/Llama-3.1-8B"}
+MODEL_REPO="szymonrucinski/Llama-3.1-8B-AWQ-4bit"
+OUTPUT_MODEL_NAME="Llama-3.1-8B-AWQ-4bit"
+FINAL_OUTPUT_DIR="${OUTPUT_DIR}/${OUTPUT_MODEL_NAME}"
+
+# Function to check command success
+check_command() {
+    if [ $? -ne 0 ]; then
+        echo "Error: $1 failed"
+        exit 1
+    fi
+}
+
+# Function to ensure directories exist
+ensure_directories() {
+    mkdir -p "${OUTPUT_DIR}"
+    check_command "Directory creation"
+}
+
+# Function to download the model
+download_model() {
+    echo "Downloading model from Hugging Face..."
+    huggingface-cli download --token "${HF_TOKEN}" \
+        "${MODEL_REPO}" \
+        --local-dir "${OUTPUT_DIR}" \
+        --local-dir-use-symlinks False
+    check_command "Model download"
+}
+
+# Function to install dependencies
+install_dependencies() {
+    pip3 install "sparseml[transformers]"
+    pip3 install transformers==4.46.3
+    pip3 install autoawq
+    pip3 install lm-eval
+    pip3 install --upgrade "aqlm[gpu,cpu]"
+    check_command "Dependencies installation"
+}
+
+# Function to login to Hugging Face
+hf_login() {
+    huggingface-cli login --token "${HF_TOKEN}"
+    check_command "Hugging Face login"
+}
+
+# Function to run compression
+run_compression() {
+    # echo "Running Initial Eval of ${INPUT_MODEL}"
+    # python3 "${COMPRESSION_DIR}/custom_eval.sh" "${HF_TOKEN}" "${INPUT_MODEL}" "${FINAL_OUTPUT_DIR}"
+    check_command "Initial evaluation"
+    
+    echo "Running 4-bit quantization using AWQ W4A16 with custom calibration dataset"
+    python3 "${COMPRESSION_DIR}/1-awq-4-bit.py" \
+        --input-model "${INPUT_MODEL}" \
+        --output-model "${FINAL_OUTPUT_DIR}"
+    check_command "AWQ quantization"
+    
+    python3 "${COMPRESSION_DIR}/upload_model.py" \
+        --model-dir "${FINAL_OUTPUT_DIR}" \
+        --repo-name "${MODEL_REPO}" \
+        --hf-token "${HF_TOKEN}"
+    check_command "Model upload"
+    
+    # python3 "${COMPRESSION_DIR}/custom_eval.sh" \
+    #     "${HF_TOKEN}" \
+    #     "${INPUT_MODEL}" \
+    #     "${FINAL_OUTPUT_DIR}"
+    # check_command "Final evaluation"
+}
+
+# Main execution
+main() {
+    ensure_directories
+    install_dependencies
+    hf_login
+    download_model
+    
+    if [[ "$1" == "--compress" ]]; then
+        run_compression
+        
+        if [[ ! -d "${FINAL_OUTPUT_DIR}" ]]; then
+            echo "Error: Output directory not found after compression"
+            exit 1
+        fi
+    fi
+    
+    echo "BUILD SUCCESSFUL"
+}
+
+# Execute main with all arguments
+main "$@"
