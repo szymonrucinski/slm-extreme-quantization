@@ -8,7 +8,7 @@ set -e  # Exit on error
 
 # Login to Hugging Face
 # huggingface-cli login --token ${HF_TOKEN}
-huggingface-cli login --token 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
+huggingface-cli login --token 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
 # Install dependencies
 # python3 setup.py install
 pip3 install "sparseml[transformers]"
@@ -16,6 +16,7 @@ pip3 install "sparseml[transformers]"
 # ValueError: `rope_scaling` must be a dictionary with two fields, `type` and `factor`, got {'factor': 8.0, 'low_freq_factor': 1.0, 'high_freq_factor': 4.0, 'original_max_position_embeddings': 8192, 'rope_type': 'llama3'}
 pip3 install transformers==4.46.3
 pip3 install autoawq
+pip3 install lm-eval
 pip3 install --upgrade aqlm[gpu,cpu]
 
 
@@ -24,29 +25,22 @@ if [[ "$1" == "--compress" ]]; then
     Calculate perplexity score for each element between <100;512> tokens.
     Get samples across the entire perplexity range. 10 buckets with 100 per bucket.
     "
-    python3 0-make_calibration_set.py
-	echo "Running SpareGPT pruning 1:4 and quantization using 4-BIT-AWQ quantization"
-    # python3 /opt/llm/user/compression/compress.py
-    echo "Running SpareGPT pruning 1:4 and quantization using 2-BIT-AQLM quantization"
-
-
-    # sparseml.transformers.text_generation.oneshot \
-    # --model meta-llama/Llama-3.1-8B \
-    # --recipe "./recipe.yaml" \
-    # --dataset_config_name wikitext-2-raw-v1 \
-    # --output_dir "./compression/output_model" \
-    # --precision float16 \
-    # --dataset wikitext \
-    # --text_column text
+    # python3 0-make_calibration_set.py
     
-    # # Run additional compression steps
-    # echo "Running custom compression pipeline..."
-    # cd compression
+    echo "Running Initial Eval of LLama-3.1-8B model"
+    HF_TOKEN="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"
+    OUTPUT_MODEL="meta-llama/Llama-3.2-1B"
+    # ./compression/custom_eval.sh "$HF_TOKEN" "$ORIGINAL_MODEL" "$OUTPUT_MODEL"
 
-	#AWQ-4bit
-    # python3 /opt/llm/user/compression/1-awq-4-bit.py /opt/llm/user/compression/output_model/Llama-3.1-8B-AWQ-4bit
-	# python3 /opt/llm/user/compression/2-sparsegpt.py /opt/llm/user/compression/output_model/Llama-3.1-8B-SparseGPT-4bit
-    python3 /opt/llm/user/compression/3-quantize-aqlm.py /opt/llm/user/compression/output_model/Llama-3.1-8B-AQLM-2bit
+    echo "Running 4-bit quantization of the model using AWQ W4A16 with custom calibration dataset"
+    python3 ./compression/1-awq-4-bit.py --input-model $OUTPUT_MODEL --output-model ./compression/output_model/Llama-3.1-8B-AWQ-4bit
+    python3 upload_model.py --model-dir ./compression/output_model/Llama-3.1-8B-AWQ-4bit --repo-name "szymonrucinski/Llama-3.1-8B-AWQ-4bit" 
+    OUTPUT_MODEL="meta-llama/Llama-3.1-8B"
+    ./compression/custom_eval.sh "$HF_TOKEN" "$ORIGINAL_MODEL" "./compression/output_model/Llama-3.1-8B-AWQ-4bit"
+
+
+    echo "Running pruning of 4-bit quantization of the model using AWQ W4A16 "
+    python3 upload_model.py --model-dir ./compression/output_model/Llama-3.1-8B-AWQ-4bit --repo-name "szymonrucinski/Llama-3.1-8B-AWQ-4bit" 
 
     
     # Verify output directory exists
